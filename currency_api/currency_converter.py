@@ -2,7 +2,7 @@ import freecurrencyapi
 import requests
 from requests.structures import CaseInsensitiveDict
 
-url = "https://api.freecurrencyapi.com/v1/latest?apikey=fca_live_cyksGQMCokod6Bn1SbxbwMSbmmg33vu2HafxmJ8u"
+url = "https://api.freecurrencyapi.com/v1/latest?apikey=YOUR_KEY"
 
 resp = requests.get(url)
 

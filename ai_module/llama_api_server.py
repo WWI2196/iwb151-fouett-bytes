@@ -7,14 +7,29 @@ from huggingface_hub import login
 
 warnings.filterwarnings('ignore')
 
-# Get the Hugging Face token (replace 'TOKEN_ENTER' with your actual token or use env variable)
-hf_token = os.getenv('HUGGINGFACE_TOKEN', 'TOKEN_ENTER')
+# Load the Hugging Face token from a file
+def load_hf_token(file_path):
+    try:
+        with open(file_path, 'r') as file:
+            hf_token = file.read().strip()
+            return hf_token
+    except FileNotFoundError:
+        raise ValueError(f"Token file not found at {file_path}. Please provide a valid file.")
+
+# Path to the file containing your Hugging Face token
+token_file_path = 'C:\\Users\\Wansajee\\OneDrive\\Desktop\\Currency Conversion Microservice with AI Integration\\ai_module\\hf_token.txt'
+print(f"Looking for the token file at: {token_file_path}")
+hf_token = load_hf_token(token_file_path)
+
+
+# Get the Hugging Face token
+hf_token = load_hf_token(token_file_path)
 
 # Login to Hugging Face
 if hf_token and hf_token != "TOKEN_ENTER":
     login(token=hf_token)
 else:
-    raise ValueError("HUGGINGFACE_TOKEN not found or invalid. Please set it correctly.")
+    raise ValueError("Hugging Face token is invalid or missing.")
 
 # Initialize the LLaMA pipeline for text generation
 model_id = "meta-llama/Llama-3.2-1B-Instruct"  # Change model ID if needed
@@ -53,9 +68,9 @@ def predict():
     try:
         # Call the generate_response function to get AI prediction
         response = generate_response(system_message, user_message)
-        return jsonify({"assistant_response": response})
+        return response, 200  # Return only the assistant's response as plain text
     except Exception as e:
-        return jsonify({"error": str(e)}), 500
+        return str(e), 500  # Return error message as plain text
 
 if __name__ == '__main__':
     # Running Flask app on port 5001
