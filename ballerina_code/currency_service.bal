@@ -39,4 +39,14 @@ function callAIPredictionService(string systemMessage, string userMessage) retur
 public function main() returns error? {
     io:println("Starting Ballerina service on port 8080");
     io:println("Make sure the Python Flask server (llama_api_server.py) is running on port 5001");
+
+    // Simulate an automatic request for testing
+    string systemMessage = "You are an AI that predicts currency exchange trends based on economic news.";
+    string userMessage = "What is the future trend for USD to EUR?";
+
+    // Call the AI model service directly from the main function
+    string aiPrediction = check callAIPredictionService(systemMessage, userMessage);
+    
+    // Print the response from the LLaMA module to the terminal
+    io:println("AI Prediction (Test): " + aiPrediction);
 }
