@@ -134,12 +134,18 @@ class NewsCollector:
             if any(keyword in text for keyword in keywords):
                 matching_categories.append(category)
 
-        return matching_categories if matching_categories else ['Uncategorized']
+        # Return the matching categories or None if uncategorized
+        return matching_categories if matching_categories else None
 
     def format_articles_for_ml(self, articles: List[Dict]) -> str:
         """Format articles with enhanced description and categories."""
         formatted_output = ""
         for article in articles:
+            # Get categories and skip uncategorized articles
+            categories = self.categorize_article(article)
+            if not categories:
+                continue  # Skip if no categories match
+
             # Format date
             try:
                 date_obj = datetime.strptime(article['publishedAt'], '%Y-%m-%dT%H:%M:%SZ')
@@ -150,16 +156,12 @@ class NewsCollector:
             # Get full description
             full_description = self.get_full_description(article)
 
-            # Get categories
-            categories = self.categorize_article(article)
-
             # Add formatted article with clear section separation
             formatted_output += "\n"  # Section separator
             formatted_output += f"Title: {article['title']}\n"
             formatted_output += f"Date: {formatted_date}\n"
             formatted_output += f"Description: {full_description}\n"
             formatted_output += f"Categories: {', '.join(categories)}\n"
-
 
         return formatted_output
 
@@ -177,8 +179,12 @@ class NewsCollector:
         json_filename = self.output_dir / f'raw_news_{timestamp}.json'
         enriched_articles = []
         for article in articles:
+            categories = self.categorize_article(article)
+            if not categories:
+                continue  # Skip uncategorized articles
+
             article_copy = article.copy()
-            article_copy['categories'] = self.categorize_article(article)
+            article_copy['categories'] = categories
             article_copy['full_description'] = self.get_full_description(article)
             enriched_articles.append(article_copy)
 
