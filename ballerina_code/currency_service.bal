@@ -1,85 +1,111 @@
 import ballerina/http;
 import ballerina/io;
+import ballerina/log;
+import ballerina/lang.runtime;
 
-// Increase the timeout to 5 minutes (300000 milliseconds)
 configurable int timeoutInSeconds = 300;
 
-// Service that handles currency exchange predictions
 service /currency on new http:Listener(8080) {
     resource function post prediction() returns string|error {
-        // Collect news details from Python NewsCollector
-        string systemMessage = "You are an AI that predicts currency exchange trends based on economic news.";
-        
-        // Fetch the latest economic news to predict based on the current trends
+        log:printInfo("Received prediction request");
+
+        // Fetch news details
         string newsDetails = check getNewsDetailsFromPythonAPI();
-        io:println("Fetched News Details for AI Prediction: \n" + newsDetails);
+        log:printInfo("Fetched News Details for prediction: " + newsDetails);
 
-        // Send the collected news details to the AI model for prediction
-        string aiPrediction = check callAIPredictionService(systemMessage, newsDetails);
-        
-        // Print the response from the LLaMA module to the terminal
-        io:println("AI Prediction based on news: " + aiPrediction);
+        // Call AI Prediction Service
+        string aiPrediction = check callAIPredictionService(newsDetails);
+        log:printInfo("AI Prediction Result: " + aiPrediction);
 
-        // Return the AI prediction as the HTTP response
+        // Output only the currency predictions
         return aiPrediction;
+    }
+
+    // New endpoint for testing news API
+    resource function get testNews() returns string|error {
+        return getNewsDetailsFromPythonAPI();
+    }
+
+    // New endpoint for testing AI API
+    resource function get testAI() returns string|error {
+        string dummyNews = "This is a test news article about currency exchange rates.";
+        return callAIPredictionService(dummyNews);
     }
 }
 
-// Function to call Python NewsCollector API and get formatted news details
 function getNewsDetailsFromPythonAPI() returns string|error {
-    // Create an HTTP client to communicate with the Python API (on port 5002)
-    http:Client newsClient = check new("http://localhost:5002",
-        timeout = <decimal>timeoutInSeconds
-    );
+    http:Client newsClient = check new("http://localhost:5002", timeout = <decimal>timeoutInSeconds);
     
-    // Send a GET request to the `/collect-news` endpoint of the Python service
-    http:Response newsResponse = check newsClient->get("/collect-news");
-    io:println("Received response from Python News API.");
+    log:printInfo("Sending request to News API...");
+    http:Response|error newsResponse = newsClient->get("/news");
     
-    // Extract the formatted news details
-    string newsDetails = check newsResponse.getTextPayload();
+    if (newsResponse is error) {
+        log:printError("Error calling News API: " + newsResponse.message());
+        return error("Failed to fetch news");
+    }
     
-    return newsDetails;
+    log:printInfo("Received response from News API. Status: " + newsResponse.statusCode.toString());
+    
+    json|error newsJson = newsResponse.getJsonPayload();
+    if (newsJson is error) {
+        log:printError("Error parsing News API response: " + newsJson.message());
+        return error("Failed to parse news response");
+    }
+    
+    json|error formattedNews = newsJson.formatted_news;
+    if (formattedNews is error) {
+        log:printError("Error extracting formatted news: " + formattedNews.message());
+        return error("Failed to extract formatted news");
+    }
+    
+    return formattedNews.toString();
 }
 
-// Function to send the news to the LLaMA model for currency prediction
-function callAIPredictionService(string systemMessage, string newsDetails) returns string|error {
-    // Create an HTTP client to communicate with the LLaMA Flask API (on port 5001)
-    http:Client aiClient = check new("http://localhost:5001",
-        timeout = <decimal>timeoutInSeconds
-    );
+function callAIPredictionService(string newsDetails) returns string|error {
+    http:Client aiClient = check new("http://localhost:5001", timeout = <decimal>timeoutInSeconds);
     
-    // Prepare the JSON payload to send to the Python API
     json payload = {
-        "system_message": systemMessage,
         "user_message": newsDetails
     };
     
-    io:println("Sending request to Python AI API...");
-    // Send the POST request to the `/predict` endpoint
-    http:Response aiResponse = check aiClient->post("/predict", payload);
-    io:println("Received response from Python AI API.");
+    log:printInfo("Payload being sent to AI API: " + payload.toJsonString());
     
-    // Extract the AI prediction text response
-    string aiPrediction = check aiResponse.getTextPayload();
-
-    // Return the prediction made by the AI
-    return aiPrediction;
+    log:printInfo("Sending request to AI API...");
+    http:Response|error aiResponse = aiClient->post("/predict", payload);
+    
+    if (aiResponse is error) {
+        log:printError("Error calling AI API: " + aiResponse.message());
+        return error("Failed to call AI prediction service");
+    }
+    
+    log:printInfo("Received response from AI API. Status: " + aiResponse.statusCode.toString());
+    
+    json|error aiPredictionJson = aiResponse.getJsonPayload();
+    if (aiPredictionJson is error) {
+        log:printError("Error parsing AI API response: " + aiPredictionJson.message());
+        return error("Failed to parse AI prediction response");
+    }
+    
+    json|error currencyPredictions = aiPredictionJson.currency_predictions;
+    if (currencyPredictions is error) {
+        log:printError("Error extracting currency predictions: " + currencyPredictions.message());
+        return error("Failed to extract currency predictions");
+    }
+    
+    return currencyPredictions.toString();
 }
 
 public function main() returns error? {
-    io:println("Starting Ballerina service on port 8080");
-    io:println("Ensure both Python Flask servers are running: one for news collection (port 5002) and one for AI prediction (port 5001)");
+    log:printInfo("Starting Ballerina service on port 8080");
+    log:printInfo("Ensure both Python Flask servers are running: news collection (port 5002) and AI prediction (port 5001)");
+    log:printInfo("Test endpoints: ");
+    log:printInfo("  - News API: http://localhost:8080/currency/testNews");
+    log:printInfo("  - AI API: http://localhost:8080/currency/testAI");
+    log:printInfo("  - Full prediction: Send a POST request to http://localhost:8080/currency/prediction");
 
+    // Keeping the service alive
     while true {
-        io:println("\nSend a POST request to `/currency/prediction` to predict currency trends based on economic news.");
-        io:println("Enter 'exit' to stop the service.");
-
-        string userInput = io:readln();
-        if (userInput.toLowerAscii() == "exit") {
-            break;
-        }
+        io:println("\nService is running. Press Ctrl+C to stop.");
+        runtime:sleep(60);
     }
-
-    io:println("Exiting the Currency Prediction Service.");
 }

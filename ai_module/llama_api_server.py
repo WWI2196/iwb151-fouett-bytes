@@ -3,6 +3,7 @@ import torch
 from transformers import pipeline
 from flask import Flask, request, jsonify
 from huggingface_hub import login
+from datetime import datetime
 
 # Load the Hugging Face token from a file
 def load_hf_token(file_path):
@@ -12,6 +13,10 @@ def load_hf_token(file_path):
             return hf_token
     except FileNotFoundError:
         raise ValueError(f"Token file not found at {file_path}. Please provide a valid file.")
+
+# Create the output directory if it doesn't exist
+output_directory = 'collected_ai_forecasts'
+os.makedirs(output_directory, exist_ok=True)
 
 token_file_path = 'ai_module\\hf_token.txt'
 print(f"Looking for the token file at: {token_file_path}")
@@ -35,10 +40,29 @@ def generate_response(system_message, user_message):
     prompt = f"{system_message}\n\nHuman: {user_message}\n\nAssistant:"
     
     # Generate the response using the LLaMA model
-    outputs = pipe(prompt, max_new_tokens=2000, do_sample=True, temperature=0.7)
+    outputs = pipe(prompt, max_new_tokens=4000, do_sample=True, temperature=0.7)
     assistant_response = outputs[0]['generated_text'].split("Assistant:")[-1].strip()
 
     return assistant_response
+
+def save_forecast(response, user_message):
+    # Generate timestamp for the filename
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    filename = f"forecast_{timestamp}.txt"
+    filepath = os.path.join(output_directory, filename)
+    
+    # Save the response with context
+    with open(filepath, 'w', encoding='utf-8') as file:
+        file.write(f"Timestamp: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
+        file.write(f"Query: {user_message}\n")
+        file.write(f"Response:\n{response}\n")
+        file.write("-" * 80 + "\n")
+    
+    # Also update the latest forecast file
+    with open('ai_output.txt', 'w', encoding='utf-8') as file:
+        file.write(response)
+    
+    return filepath
 
 app = Flask(__name__)
 
@@ -55,10 +79,9 @@ def predict():
     try:
         response = generate_response(system_message, user_message)
         
-        # Save the response to a file
-        output_file_path = 'ai_output.txt'
-        with open(output_file_path, 'w', encoding='utf-8') as file:
-            file.write(response)
+        # Save the forecast to a new file
+        saved_filepath = save_forecast(response, user_message)
+        print(f"Forecast saved to: {saved_filepath}")
         
         return response, 200, {'Content-Type': 'text/plain'}
     except Exception as e:
