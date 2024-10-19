@@ -1,13 +1,15 @@
 import os
 import json
-import logging
+from flask import Flask, jsonify, request
 from newsapi import NewsApiClient
 from datetime import datetime, timedelta
 from pathlib import Path
-from typing import List, Dict, Optional, Union
+from typing import List, Dict, Optional, Union, Tuple
 import html
 import re
+import logging
 
+app = Flask(__name__)
 
 class NewsCollector:
     def __init__(self, api_key: str):
@@ -52,8 +54,7 @@ class NewsCollector:
             print(f"Error loading API key: {str(e)}")
             return None
 
-    def get_news(self,
-                 keyword: str = 'currency exchange OR forex OR "foreign exchange"') -> List[Dict]:
+    def get_news(self, keyword: str = 'currency exchange OR forex OR "foreign exchange"') -> List[Dict]:
         """Fetch news articles based on given parameters."""
         try:
             end_date = datetime.now()
@@ -80,16 +81,9 @@ class NewsCollector:
         if not text:
             return ""
 
-        # Decode HTML entities
         text = html.unescape(text)
-
-        # Remove HTML tags
         text = re.sub(r'<[^>]+>', '', text)
-
-        # Remove extra whitespace and newlines
         text = ' '.join(text.split())
-
-        # Remove special characters but keep basic punctuation
         text = re.sub(r'[^\w\s.,!?-]', '', text)
 
         return text.strip()
@@ -97,67 +91,46 @@ class NewsCollector:
     def get_full_description(self, article: Dict) -> str:
         """Combine and clean all available text content from the article."""
         content_parts = []
-
-        # Add description if available
         if article.get('description'):
             content_parts.append(self.clean_text(article['description']))
 
-        # Add content if available
         if article.get('content'):
-            # Remove the "[+chars]" suffix that sometimes appears in content
             content = re.sub(r'\[\+\d+ chars\]', '', article['content'])
             content = self.clean_text(content)
-            if content and content not in content_parts:  # Avoid duplication
+            if content and content not in content_parts:
                 content_parts.append(content)
 
-        # Add title context if needed
         if article.get('title'):
             title_context = self.clean_text(article['title'])
             if not any(title_context in part for part in content_parts):
                 content_parts.insert(0, title_context)
 
-        # Combine all parts
         full_description = ' '.join(content_parts)
 
-        # If still empty, use a placeholder
-        if not full_description:
-            return "No detailed description available."
-
-        return full_description
+        return full_description if full_description else "No detailed description available."
 
     def categorize_article(self, article: Dict) -> List[str]:
         """Categorize article based on content and return all matching categories."""
         text = self.get_full_description(article).lower()
-
-        matching_categories = []
-        for category, keywords in self.categories.items():
-            if any(keyword in text for keyword in keywords):
-                matching_categories.append(category)
-
-        # Return the matching categories or None if uncategorized
+        matching_categories = [category for category, keywords in self.categories.items() if any(keyword in text for keyword in keywords)]
         return matching_categories if matching_categories else None
 
     def format_articles_for_ml(self, articles: List[Dict]) -> str:
         """Format articles with enhanced description and categories."""
         formatted_output = ""
         for article in articles:
-            # Get categories and skip uncategorized articles
             categories = self.categorize_article(article)
             if not categories:
-                continue  # Skip if no categories match
+                continue
 
-            # Format date
             try:
                 date_obj = datetime.strptime(article['publishedAt'], '%Y-%m-%dT%H:%M:%SZ')
                 formatted_date = date_obj.strftime('%Y-%m-%d %H:%M:%S')
             except:
                 formatted_date = article['publishedAt']
 
-            # Get full description
             full_description = self.get_full_description(article)
-
-            # Add formatted article with clear section separation
-            formatted_output += "\n"  # Section separator
+            formatted_output += "\n"
             formatted_output += f"Title: {article['title']}\n"
             formatted_output += f"Date: {formatted_date}\n"
             formatted_output += f"Description: {full_description}\n"
@@ -165,23 +138,21 @@ class NewsCollector:
 
         return formatted_output
 
-    def save_articles(self, articles: List[Dict]):
+    def save_articles(self, articles: List[Dict]) -> Tuple[List[Dict], str]:
         """Save articles in both ML format and raw JSON."""
         timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
 
-        # Save ML format
         ml_filename = self.output_dir / f'ml_format_news_{timestamp}.txt'
         formatted_content = self.format_articles_for_ml(articles)
         with open(ml_filename, 'w', encoding='utf-8') as f:
             f.write(formatted_content)
 
-        # Save raw JSON with categories and full descriptions
         json_filename = self.output_dir / f'raw_news_{timestamp}.json'
         enriched_articles = []
         for article in articles:
             categories = self.categorize_article(article)
             if not categories:
-                continue  # Skip uncategorized articles
+                continue
 
             article_copy = article.copy()
             article_copy['categories'] = categories
@@ -191,32 +162,37 @@ class NewsCollector:
         with open(json_filename, 'w', encoding='utf-8') as f:
             json.dump(enriched_articles, f, ensure_ascii=False, indent=2)
 
+        return enriched_articles, formatted_content
 
-def main():
-    try:
-        # Setup
-        script_dir = Path(__file__).parent
-        api_key_file_path = script_dir / 'news_token.txt'
+@app.route('/news', methods=['GET'])
+def get_news_for_ballerina():
+    """Fetch news and return formatted data for Ballerina."""
+    api_key = NewsCollector.load_api_key(Path('news_api/news_token.txt'))
+    if api_key is None:
+        return jsonify({"error": "API key not found"}), 500
 
-        # Load API key
-        api_key = NewsCollector.load_api_key(api_key_file_path)
-        if api_key is None:
-            print("Failed to load API key. Exiting script.")
-            return
+    keyword = request.args.get('keyword', default='currency exchange OR forex OR "foreign exchange"')
+    collector = NewsCollector(api_key)
+    news_articles = collector.get_news(keyword)
 
-        # Initialize collector and fetch news
-        collector = NewsCollector(api_key)
-        news_articles = collector.get_news()
+    # Debugging print statements to check the fetched articles
+    print(f"Number of Articles Fetched: {len(news_articles)}")
+    for article in news_articles:
+        print(f"Title: {article.get('title', 'No title')}")
 
-        if news_articles:
-            print(collector.format_articles_for_ml(news_articles))
-            collector.save_articles(news_articles)
-        else:
-            print("No articles were retrieved")
+    if not news_articles:
+        return jsonify({"error": "No news articles found"}), 404
 
-    except Exception as e:
-        print(f"An error occurred: {str(e)}")
+    enriched_articles, formatted_content = collector.save_articles(news_articles)
 
+    # Print formatted content to console for debugging
+    print("Formatted Content:")
+    print(formatted_content)
 
-if __name__ == "__main__":
-    main()
+    return jsonify({
+        "raw_news": enriched_articles,
+        "formatted_news": formatted_content
+    })
+
+if __name__ == '__main__':
+    app.run(port=5002, debug=True)
