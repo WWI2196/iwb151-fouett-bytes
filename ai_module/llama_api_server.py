@@ -23,7 +23,7 @@ if hf_token and hf_token != "TOKEN_ENTER":
 else:
     raise ValueError("Hugging Face token is invalid or missing.")
 
-model_id = "meta-llama/Meta-Llama-3-70B-Instruct"
+model_id = "meta-llama/Meta-Llama-3-8B-Instruct"
 pipe = pipeline(
     "text-generation",
     model=model_id,
