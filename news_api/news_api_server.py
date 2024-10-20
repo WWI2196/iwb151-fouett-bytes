@@ -108,7 +108,7 @@ class NewsCollector:
         return max(score, 0.0), category_matches
 
     def is_relevant_article(self, article: Dict, min_score: float = 4.0) -> Tuple[bool, float, Dict[str, int]]:
-        #Determine if an article is relevant.
+        #Determine if an article is relevant based on the relevance score.
         full_text = f"{article.get('title', '')} {article.get('description', '')} {article.get('content', '')}"
         relevance_score, category_matches = self.calculate_relevance_score(full_text)
         

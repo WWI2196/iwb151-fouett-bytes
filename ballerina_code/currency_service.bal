@@ -3,7 +3,6 @@ import ballerina/io;
 import ballerina/log;
 import ballerina/file;
 
-// Define HTTP clients as module-level variables with increased timeout
 final http:Client newsClient = check new ("http://localhost:5002",
     timeout = 30
 );
@@ -12,11 +11,9 @@ final http:Client llamaClient = check new ("http://localhost:5001",
 );
 
 public function main() returns error? {
-    // Start the prediction process
     json|error combinedResponse = predict();
 
     if combinedResponse is json {
-        // Print the combined response to the terminal
         io:println("Prediction process completed successfully.");
         io:println("Forecast has been saved in the 'collected_ai_forecasts' folder.");
     } else {

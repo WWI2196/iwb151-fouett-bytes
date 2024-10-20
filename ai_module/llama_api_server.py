@@ -68,8 +68,8 @@ app = Flask(__name__)
 def predict():
     try:
         data = request.get_json()
-        print(f"Request Body: {data}")  # Log the request body for debugging
-        print(f"Request Headers: {request.headers}")  # Log the request headers for debugging
+        print(f"Request Body: {data}")  
+        print(f"Request Headers: {request.headers}") 
         
         system_message = data.get('system_message', 
             "You are an AI currency analyst expert. Your task is to: "
