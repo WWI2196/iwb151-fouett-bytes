@@ -66,6 +66,7 @@ A sophisticated microservice that leverages AI to forecast currency exchange rat
    ```bash
    bal run ballerina_code/currency_service.bal
    ```
+> **Important**: Once both Python and Ballerina services are running, AI predictions will be automatically saved to the `collected_ai_forecasts` folder in the Ballerina code directory.
 
 ## ⚙️ Configuration
 ### API Configuration
