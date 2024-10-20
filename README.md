@@ -40,7 +40,7 @@ A sophisticated microservice that leverages AI to forecast currency exchange rat
 ## 🛠️ Installation
 1. **Clone Repository**
    ```bash
-   git clone https://github.com/your_username/currency-exchange-prediction.git
+   git clone https://github.com/WWI2196/iwb151-fouett-bytes.git
    cd currency-exchange-prediction
    ```
 
