@@ -1,5 +1,3 @@
-import os
-import json
 from flask import Flask, jsonify, request
 from newsapi import NewsApiClient
 from datetime import datetime, timedelta
@@ -81,7 +79,7 @@ class NewsCollector:
 
     @staticmethod
     def load_api_key(path: Path) -> Optional[str]:
-        """Load API key from a specified file path."""
+       #Load API key from a specified file path.
         try:
             with open(path, 'r') as file:
                 return file.read().strip()
@@ -90,7 +88,7 @@ class NewsCollector:
             return None
 
     def calculate_relevance_score(self, text: str) -> Tuple[float, Dict[str, int]]:
-        """Calculate a relevance score and category matches for the article text."""
+        #Calculate a relevance score and category matches for the article text.
         text = text.lower()
         score = 0.0
         category_matches = {category: 0 for category in self.relevancy_keywords.keys()}
@@ -110,7 +108,7 @@ class NewsCollector:
         return max(score, 0.0), category_matches
 
     def is_relevant_article(self, article: Dict, min_score: float = 4.0) -> Tuple[bool, float, Dict[str, int]]:
-        """Determine if an article is relevant based on its content."""
+        #Determine if an article is relevant.
         full_text = f"{article.get('title', '')} {article.get('description', '')} {article.get('content', '')}"
         relevance_score, category_matches = self.calculate_relevance_score(full_text)
         
@@ -119,7 +117,7 @@ class NewsCollector:
         return (relevance_score >= min_score and has_categories), relevance_score, category_matches
 
     def get_news(self, keyword: str = None) -> List[Dict]:
-        """Fetch news articles with comprehensive relevancy filtering."""
+        #Fetch news articles with filtering.
         try:
             end_date = datetime.now()
             start_date = end_date - timedelta(days=7)
@@ -167,7 +165,7 @@ class NewsCollector:
             return []
 
     def format_articles_for_ml(self, articles: List[Dict]) -> str:
-        """Format articles with enhanced description, relevance score, and categories."""
+        #Format articles for machine learning input.
         formatted_output = f"Top {self.max_articles} Most Relevant Financial News Articles:\n"
         formatted_output += "=" * 80 + "\n"
         
@@ -186,23 +184,18 @@ class NewsCollector:
         return formatted_output.strip()
 
     def get_full_description(self, article: Dict) -> str:
-        """Get the full description of an article, combining description and content."""
+        #Get the full description of an article
         description = article.get('description', '')
         content = article.get('content', '')
-        
-        # Remove '[+chars chars]' pattern from content
+
         content = re.sub(r'\[\+\d+ chars\]', '', content)
-        
-        # Combine description and content, removing duplicates
         full_description = f"{description} {content}".strip()
-        
-        # Unescape HTML entities
         full_description = html.unescape(full_description)
         
         return full_description
 
     def save_articles(self, articles: List[Dict]) -> Tuple[List[Dict], str]:
-        """Save articles to a file and return enriched articles with formatted content."""
+        #Save articles to a file and return.
         enriched_articles = []
         for article in articles:
             enriched_article = article.copy()
@@ -225,7 +218,6 @@ class NewsCollector:
 
 @app.route('/news', methods=['GET'])
 def get_news_for_ballerina():
-    """Fetch news and return formatted data with comprehensive filtering."""
     api_key = NewsCollector.load_api_key(Path('news_api/news_token.txt'))
     if api_key is None:
         return jsonify({"error": "API key not found"}), 500

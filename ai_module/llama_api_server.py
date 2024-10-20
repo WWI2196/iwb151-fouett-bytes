@@ -14,7 +14,7 @@ def load_hf_token(file_path):
     except FileNotFoundError:
         raise ValueError(f"Token file not found at {file_path}. Please provide a valid file.")
 
-# Create the output directory if it doesn't exist
+# Create the output directory
 output_directory = 'collected_ai_forecasts'
 os.makedirs(output_directory, exist_ok=True)
 
@@ -38,15 +38,17 @@ pipe = pipeline(
 
 def generate_response(system_message, user_message):
     prompt = f"{system_message}\n\nHuman: {user_message}\n\nAssistant:"
-    
-    # Generate the response using the LLaMA model
-    outputs = pipe(prompt, max_new_tokens=4000, do_sample=True, temperature=0.7)
-    assistant_response = outputs[0]['generated_text'].split("Assistant:")[-1].strip()
 
-    return assistant_response
+    try:
+        outputs = pipe(prompt, max_new_tokens=4000, do_sample=True, temperature=0.7)
+        assistant_response = outputs[0]['generated_text'].split("Assistant:")[-1].strip()
+        return assistant_response
+    except Exception as e:
+        print(f"Error generating response with LLaMA: {e}")
+        raise
 
 def save_forecast(response, user_message):
-    # Generate timestamp for the filename
+    # Create a new file with the current timestamp
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     filename = f"forecast_{timestamp}.txt"
     filepath = os.path.join(output_directory, filename)
@@ -57,32 +59,31 @@ def save_forecast(response, user_message):
         file.write(f"Query: {user_message}\n")
         file.write(f"Response:\n{response}\n")
         file.write("-" * 80 + "\n")
-    
-    # Also update the latest forecast file
-    with open('ai_output.txt', 'w', encoding='utf-8') as file:
-        file.write(response)
-    
+
     return filepath
 
 app = Flask(__name__)
 
 @app.route('/predict', methods=['POST'])
 def predict():
-    data = request.get_json()
-    
-    system_message = data.get('system_message', 
-        "You are an AI currency analyst expert. Your task is to: "
-        "1. Analyze the provided financial news data."
-        "2. Identify key currencies and factors impacting their movement."
-        "3. Predict currency trends for the upcoming week."
-        "4. Provide specific insights on major currency pairs and key events driving the market."
-        " Format your response with sections for Analysis, Key Factors, and Predictions.")
-    user_message = data.get('user_message', "")
-    
-    if not user_message:
-        return jsonify({"error": "No user message provided."}), 400
-    
     try:
+        data = request.get_json()
+        print(f"Request Body: {data}")  # Log the request body for debugging
+        print(f"Request Headers: {request.headers}")  # Log the request headers for debugging
+        
+        system_message = data.get('system_message', 
+            "You are an AI currency analyst expert. Your task is to: "
+            "1. Analyze the provided financial news data."
+            "2. Identify key currencies and factors impacting their movement."
+            "3. Predict currency trends for the upcoming week."
+            "4. Provide specific insights on major currency pairs and key events driving the market."
+            " Format your response with sections for Analysis, Key Factors, and Predictions.")
+        
+        user_message = data.get('user_message', "")
+        
+        if not user_message:
+            return jsonify({"error": "No user message provided."}), 400
+        
         response = generate_response(system_message, user_message)
         
         # Save the forecast to a new file
@@ -94,6 +95,7 @@ def predict():
             "saved_filepath": saved_filepath
         }), 200
     except Exception as e:
+        print(f"Error: {str(e)}")
         return jsonify({"error": str(e)}), 500
 
 if __name__ == '__main__':
