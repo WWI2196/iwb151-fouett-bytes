@@ -1,5 +1,5 @@
 # Currency Exchange Prediction Microservice with AI Integration
-A sophisticated microservice that leverages AI to forecast currency exchange rates by analyzing financial news. The system integrates Meta-LLaMA (LLaMA-3.2-1B-Instruct) for AI predictions and NewsAPI for real-time financial news data.
+A microservice that leverages AI to forecast currency exchange rates by analyzing financial news. The system integrates Meta-LLaMA (LLaMA-3.2-1B-Instruct) for AI predictions and NewsAPI for real-time financial news data.
 
 ## 🚀 Features
 - **Real-time Currency Conversion**: Fetch and convert exchange rates between multiple currencies
