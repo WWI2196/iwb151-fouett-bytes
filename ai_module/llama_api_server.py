@@ -83,9 +83,12 @@ def predict():
         saved_filepath = save_forecast(response, user_message)
         print(f"Forecast saved to: {saved_filepath}")
         
-        return response, 200, {'Content-Type': 'text/plain'}
+        return jsonify({
+            "ai_response": response,
+            "saved_filepath": saved_filepath
+        }), 200
     except Exception as e:
-        return str(e), 500
+        return jsonify({"error": str(e)}), 500
 
 if __name__ == '__main__':
     app.run(port=5001, debug=True)
