@@ -20,7 +20,6 @@ class NewsCollector:
         self.output_dir.mkdir(exist_ok=True)
         self.max_articles = max_articles  # Maximum number of articles to return
         
-        # Categories and their keywords remain the same as before
         self.relevancy_keywords = {
             'monetary_policy': {
                 'weight': 3.0,
@@ -80,13 +79,22 @@ class NewsCollector:
             'unrelated', 'non-financial'
         ]
 
+    @staticmethod
+    def load_api_key(path: Path) -> Optional[str]:
+        """Load API key from a specified file path."""
+        try:
+            with open(path, 'r') as file:
+                return file.read().strip()
+        except FileNotFoundError:
+            logging.error(f"API key file not found at: {path}")
+            return None
+
     def calculate_relevance_score(self, text: str) -> Tuple[float, Dict[str, int]]:
         """Calculate a relevance score and category matches for the article text."""
         text = text.lower()
         score = 0.0
         category_matches = {category: 0 for category in self.relevancy_keywords.keys()}
         
-        # Check for keywords in each category
         for category, data in self.relevancy_keywords.items():
             matches = 0
             for keyword in data['terms']:
@@ -95,7 +103,6 @@ class NewsCollector:
                     score += data['weight']
             category_matches[category] = matches
                 
-        # Apply penalties for exclusion keywords
         for keyword in self.exclusion_keywords:
             if keyword.lower() in text:
                 score -= 2.5
@@ -107,7 +114,6 @@ class NewsCollector:
         full_text = f"{article.get('title', '')} {article.get('description', '')} {article.get('content', '')}"
         relevance_score, category_matches = self.calculate_relevance_score(full_text)
         
-        # Article must have at least one category with matches to be considered relevant
         has_categories = any(matches > 0 for matches in category_matches.values())
         
         return (relevance_score >= min_score and has_categories), relevance_score, category_matches
@@ -116,7 +122,7 @@ class NewsCollector:
         """Fetch news articles with comprehensive relevancy filtering."""
         try:
             end_date = datetime.now()
-            start_date = end_date - timedelta(days=1)
+            start_date = end_date - timedelta(days=7)
 
             if keyword is None:
                 keyword = ('(forex OR "foreign exchange" OR "currency trading") AND '
@@ -135,23 +141,20 @@ class NewsCollector:
                 logging.warning(f"API returned status: {articles['status']}")
                 return []
 
-            # Filter and enrich articles
             relevant_articles = []
             for article in articles['articles']:
                 is_relevant, score, categories = self.is_relevant_article(article)
                 if is_relevant:
-                    # Only include articles that have at least one matching category
                     matching_categories = [
                         category for category, matches in categories.items() 
                         if matches > 0
                     ]
-                    if matching_categories:  # Skip if no categories match
+                    if matching_categories:
                         article['relevance_score'] = score
                         article['category_matches'] = categories
                         article['primary_categories'] = matching_categories
                         relevant_articles.append(article)
 
-            # Sort by relevance score and limit to max_articles
             relevant_articles.sort(key=lambda x: x.get('relevance_score', 0), reverse=True)
             relevant_articles = relevant_articles[:self.max_articles]
             
@@ -178,14 +181,47 @@ class NewsCollector:
             formatted_output += f"\n{i}. Title: {article['title']}\n"
             formatted_output += f"Date: {formatted_date}\n"
             formatted_output += f"Description: {self.get_full_description(article)}\n"
-            formatted_output += f"Relevance Score: {article.get('relevance_score', 0):.2f}\n"
-            formatted_output += f"Categories: {', '.join(article.get('primary_categories', []))}\n"
-            formatted_output += f"URL: {article['url']}\n"
             formatted_output += "-" * 80 + "\n"
 
         return formatted_output.strip()
 
-    # ... [rest of the methods remain the same] ...
+    def get_full_description(self, article: Dict) -> str:
+        """Get the full description of an article, combining description and content."""
+        description = article.get('description', '')
+        content = article.get('content', '')
+        
+        # Remove '[+chars chars]' pattern from content
+        content = re.sub(r'\[\+\d+ chars\]', '', content)
+        
+        # Combine description and content, removing duplicates
+        full_description = f"{description} {content}".strip()
+        
+        # Unescape HTML entities
+        full_description = html.unescape(full_description)
+        
+        return full_description
+
+    def save_articles(self, articles: List[Dict]) -> Tuple[List[Dict], str]:
+        """Save articles to a file and return enriched articles with formatted content."""
+        enriched_articles = []
+        for article in articles:
+            enriched_article = article.copy()
+            enriched_article['full_description'] = self.get_full_description(article)
+            enriched_articles.append(enriched_article)
+
+        formatted_content = self.format_articles_for_ml(enriched_articles)
+
+        # Save to file
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        filename = f"news_articles_{timestamp}.txt"
+        file_path = self.output_dir / filename
+
+        with open(file_path, 'w', encoding='utf-8') as file:
+            file.write(formatted_content)
+
+        logging.info(f"Saved articles to {file_path}")
+
+        return enriched_articles, formatted_content
 
 @app.route('/news', methods=['GET'])
 def get_news_for_ballerina():
@@ -194,7 +230,6 @@ def get_news_for_ballerina():
     if api_key is None:
         return jsonify({"error": "API key not found"}), 500
 
-    # Get max_articles from query parameters, default to 10
     max_articles = int(request.args.get('max_articles', 10))
     collector = NewsCollector(api_key, max_articles=max_articles)
     
@@ -212,8 +247,8 @@ def get_news_for_ballerina():
         "total_articles": len(news_articles),
         "categories_found": list(set(
             cat for article in enriched_articles 
-            for cat in article.get('primary_categories', [])
-        ))
+            for cat in article.get('primary_categories', []))
+        )
     })
     response.headers.add('Access-Control-Allow-Origin', '*')
     return response
