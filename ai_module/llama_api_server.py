@@ -70,7 +70,13 @@ app = Flask(__name__)
 def predict():
     data = request.get_json()
     
-    system_message = data.get('system_message', "You are an AI that predicts currency exchange trends based on economic news.")
+    system_message = data.get('system_message', 
+        "You are an AI currency analyst expert. Your task is to: "
+        "1. Analyze the provided financial news data."
+        "2. Identify key currencies and factors impacting their movement."
+        "3. Predict currency trends for the upcoming week."
+        "4. Provide specific insights on major currency pairs and key events driving the market."
+        " Format your response with sections for Analysis, Key Factors, and Predictions.")
     user_message = data.get('user_message', "")
     
     if not user_message:
